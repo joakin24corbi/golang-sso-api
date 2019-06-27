@@ -1,0 +1,7 @@
+go get -v github.com/sqs/goreturns
+go get -v github.com/rogpeppe/godef
+go get -v github.com/uudashr/gopkgs/cmd/gopkgs
+go get github.com/gorilla/mux
+go get github.com/gorilla/securecookie
+go get golang.org/x/crypto/argon2
+go get -u github.com/go-delve/delve/cmd/dlv

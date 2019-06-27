@@ -1,0 +1,4 @@
+{
+	"asdf@mail.com": "$argon2id$v=19$m=65536,t=3,p=2$OjEbwdaBUwAT4BWYJB+AaA$AB0SBNtyNUQJe52GsOjMyAXJME+keGMm5cL+bcFvfxM",
+	"qwer@mail.com": "$argon2id$v=19$m=65536,t=3,p=2$CkogPB4PHdzepqRT51golQ$gXxwxeTT4AePMlyuVVV5jKFLoR+rkBSp5X+svEjmFDk"
+}
