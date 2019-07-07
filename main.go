@@ -5,21 +5,21 @@ import (
 
 	"github.com/gorilla/mux"
 
-	common "./common"
+	controllers "./controllers"
 )
 
 var router = mux.NewRouter()
 
 func main() {
-	router.HandleFunc("/", common.LoginPageHandler) // GET
+	// Users
+	router.HandleFunc("/", controllers.HomeHandler).Methods("GET")
+	router.HandleFunc("/login", controllers.LoginHandler).Methods("POST")
+	router.HandleFunc("/register", controllers.RegisterHandler).Methods("POST")
+	router.HandleFunc("/client", controllers.CreateClientHandler).Methods("POST")
+	router.HandleFunc("/client", controllers.RemoveClientHandler).Methods("DELETE")
 
-	router.HandleFunc("/index", common.IndexPageHandler) // GET
-	router.HandleFunc("/login", common.LoginHandler).Methods("POST")
-
-	router.HandleFunc("/register", common.RegisterPageHandler).Methods("GET")
-	router.HandleFunc("/register", common.RegisterHandler).Methods("POST")
-
-	router.HandleFunc("/logout", common.LogoutHandler).Methods("POST")
+	// Clients
+	router.HandleFunc("/user", controllers.GetUserHandler).Methods("GET")
 
 	http.Handle("/", router)
 	http.ListenAndServe(":8080", nil)
