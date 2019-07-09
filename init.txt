@@ -1,4 +1,5 @@
 go get -v github.com/sqs/goreturns
+go get -v golang.org/x/tools/cmd/guru
 go get -v github.com/rogpeppe/godef
 go get -v github.com/uudashr/gopkgs/cmd/gopkgs
 go get -u github.com/gorilla/mux
@@ -6,3 +7,6 @@ go get -u github.com/gorilla/securecookie
 go get -u golang.org/x/crypto/argon2
 go get -u github.com/go-delve/delve/cmd/dlv
 go get -u github.com/dgrijalva/jwt-go
+go get -u github.com/mitchellh/mapstructure
+go get -u github.com/gorilla/context
+go get -u "github.com/labstack/echo"

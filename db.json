@@ -1,4 +1,17 @@
-{
-	"asdf@mail.com": "$argon2id$v=19$m=65536,t=3,p=2$OjEbwdaBUwAT4BWYJB+AaA$AB0SBNtyNUQJe52GsOjMyAXJME+keGMm5cL+bcFvfxM",
-	"qwer@mail.com": "$argon2id$v=19$m=65536,t=3,p=2$CkogPB4PHdzepqRT51golQ$gXxwxeTT4AePMlyuVVV5jKFLoR+rkBSp5X+svEjmFDk"
-}
+[
+	{
+		"name": "Joaquin",
+		"email": "joakin_24_@hotmail.com",
+		"password": "$argon2id$v=19$m=65536,t=3,p=2$UOo23IErvFuz2p7Ptrev7Q$R25IxmZhz4QWB46uTP9HXbhwFV6femRhX0LiBg7PO5M"
+	},
+	{
+		"name": "Alberto",
+		"email": "alberto@mail.com",
+		"password": "$argon2id$v=19$m=65536,t=3,p=2$G80+ia32scsmlUE15o2M8w$oWGhGBuroeidegInGrmgixzpCjjST20TlwPY+wtHFfQ"
+	},
+	{
+		"name": "Luis",
+		"email": "luis@mail.com",
+		"password": "$argon2id$v=19$m=65536,t=3,p=2$wU0bYgx8zNw+XAqpZqK2iw$BrgGBUS+WhE7ClefuchjBoQR6wR1HJ602mQD5oB6Ncs"
+	}
+]

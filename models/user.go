@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -15,14 +16,9 @@ import (
 )
 
 type User struct {
-	Email    string   `json:"email"`
-	Password string   `json:"password"`
-	Clients  []Client `json:"clients"`
-}
-
-type ResponseResult struct {
-	Error  string `json:"error"`
-	Result string `json:"result"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type params struct {
@@ -34,20 +30,32 @@ type params struct {
 }
 
 var (
-	ErrInvalidHash         = errors.New("the encoded hash is not in the correct format")
-	ErrIncompatibleVersion = errors.New("incompatible version of argon2")
-	ErrRegisteredUser      = errors.New("The user is registered yet")
+	ErrInvalidHash         = errors.New("The encoded hash is not in the correct format")
+	ErrIncompatibleVersion = errors.New("Incompatible version of argon2")
+	ErrRegisteredUser      = errors.New("User registered yet")
+	ErrUserNotRegistered   = errors.New("User not registered")
+	ErrInvalidData         = errors.New("Incorrect email or password")
 )
 
 var users []User
 
-func GetUsers() (users []User, err error) {
-	// Open our jsonFile
+func UserRegister(newUser User) (user *User, err error) {
+
+	// establish the parameters to use for Argon2
+	p := &params{
+		memory:      64 * 1024,
+		iterations:  3,
+		parallelism: 2,
+		saltLength:  16,
+		keyLength:   32,
+	}
+
+	// open our jsonFile
 	jsonFile, err := os.Open("db.json")
 
 	// if we os.Open returns an error then handle it
 	if err != nil {
-		return nil, err
+		fmt.Println(err)
 	}
 
 	// defer the closing of our jsonFile so that we can parse it later on
@@ -58,123 +66,138 @@ func GetUsers() (users []User, err error) {
 	// read our opened jsonFile as a byte array
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
-	// unmarshal our byteArray which contains our jsonFile's content
+	// we unmarshal our byteArray which contains our jsonFile's content
 	json.Unmarshal(byteValue, &users)
 
-	return users, nil
+	fmt.Println(users)
+
+	// Check if user is registered yet
+	var found *User
+
+	for _, v := range users {
+		if v.Email == newUser.Email {
+			found = &v
+		}
+	}
+
+	if found != nil {
+		return nil, ErrRegisteredUser
+	} else {
+		// generate password hash
+		encodedHash, err := generateFromPassword(newUser.Password, p)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		newUser.Password = encodedHash
+
+		users = append(users, newUser)
+
+		// create a JSON text result from user info
+		jsonData, err := json.MarshalIndent(users, "", "	")
+
+		if err != nil {
+			panic(err)
+		}
+
+		// write json text in our db file
+		jsonFile.Write(jsonData)
+
+		// write file info into file archive
+		_ = ioutil.WriteFile("db.json", jsonData, 0644)
+
+		return &newUser, nil
+	}
 }
 
-func UserIsValid(email, pwd string) bool {
-	/*
-		// Open our jsonFile
-		jsonFile, err := os.Open("db.json")
+func UserLogin(newUser User) (user *User, err error) {
 
-		// if we os.Open returns an error then handle it
+	// open our jsonFile
+	jsonFile, err := os.Open("db.json")
+
+	// if we os.Open returns an error then handle it
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// defer the closing of our jsonFile so that we can parse it later on
+	defer jsonFile.Close()
+
+	fmt.Println("Successfully opened db.json")
+
+	// read our opened jsonFile as a byte array
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	// we unmarshal our byteArray which contains our jsonFile's content
+	json.Unmarshal(byteValue, &users)
+
+	fmt.Println(users)
+
+	// Check if user is registered yet
+	var found User
+
+	for _, v := range users {
+		if v.Email == newUser.Email {
+			found = v
+		}
+	}
+
+	if &found != nil {
+		// compare inserted password with the stored one
+		match, err := comparePasswordAndHash(newUser.Password, found.Password)
+
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 		}
 
-		// defer the closing of our jsonFile so that we can parse it later on
-		defer jsonFile.Close()
-
-		fmt.Println("Successfully opened db.json")
-
-		// read our opened jsonFile as a byte array
-		byteValue, _ := ioutil.ReadAll(jsonFile)
-
-		// unmarshal our byteArray which contains our jsonFile's content
-		json.Unmarshal(byteValue, &users)
-
-		fmt.Println(users)
-
-		// check if email exists in file
-		if val, ok := m[email]; ok {
-
-			// compare inserted password with the stored one
-			match, err := comparePasswordAndHash(pwd, val)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			fmt.Printf("Match: %v\n", match)
-
-			return match
+		if match {
+			return &found, nil
 		} else {
-			return false
+			return nil, ErrInvalidData
 		}
-	*/
-
-	return false
+	} else {
+		return nil, ErrUserNotRegistered
+	}
 }
 
-func UserRegister(email, pwd string) (res bool, err error) {
+func UserGet(email string) (user *User, err error) {
 
-	/*
-		// establish the parameters to use for Argon2
-		p := &params{
-			memory:      64 * 1024,
-			iterations:  3,
-			parallelism: 2,
-			saltLength:  16,
-			keyLength:   32,
+	// open our jsonFile
+	jsonFile, err := os.Open("db.json")
+
+	// if we os.Open returns an error then handle it
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// defer the closing of our jsonFile so that we can parse it later on
+	defer jsonFile.Close()
+
+	fmt.Println("Successfully opened db.json")
+
+	// read our opened jsonFile as a byte array
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	// we unmarshal our byteArray which contains our jsonFile's content
+	json.Unmarshal(byteValue, &users)
+
+	fmt.Println(users)
+
+	// Check if user is registered yet
+	var found User
+
+	for _, v := range users {
+		if v.Email == email {
+			found = v
 		}
+	}
 
-		// open our jsonFile
-		jsonFile, err := os.Open("db.json")
-
-		// if we os.Open returns an error then handle it
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		// defer the closing of our jsonFile so that we can parse it later on
-		defer jsonFile.Close()
-
-		fmt.Println("Successfully opened db.json")
-
-		// read our opened jsonFile as a byte array
-		byteValue, _ := ioutil.ReadAll(jsonFile)
-
-		// we unmarshal our byteArray which contains our jsonFile's content
-		json.Unmarshal(byteValue, &m)
-
-		fmt.Println(m)
-
-		// check if email exists in db yet
-		if val, ok := m[email]; ok {
-			fmt.Println(val)
-
-			return false, ErrRegisteredUser
-		} else {
-			// generate password hash
-			encodedHash, err := generateFromPassword(pwd, p)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			// assign password hash to user info array
-			m[email] = encodedHash
-
-			// create a JSON text result from user info
-			jsonData, err := json.MarshalIndent(m, "", "	")
-
-			if err != nil {
-				panic(err)
-			}
-
-			// write json text in our db file
-			jsonFile.Write(jsonData)
-
-			// write file info into file archive
-			_ = ioutil.WriteFile("db.json", jsonData, 0644)
-
-			return true, nil
-		}
-	*/
-
-	return false, nil
+	if &found != nil {
+		return &found, nil
+	} else {
+		return nil, ErrUserNotRegistered
+	}
 }
 
 func generateFromPassword(password string, p *params) (encodedHash string, err error) {

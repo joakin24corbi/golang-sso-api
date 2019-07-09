@@ -15,11 +15,9 @@ func main() {
 	router.HandleFunc("/", controllers.HomeHandler).Methods("GET")
 	router.HandleFunc("/login", controllers.LoginHandler).Methods("POST")
 	router.HandleFunc("/register", controllers.RegisterHandler).Methods("POST")
-	router.HandleFunc("/client", controllers.CreateClientHandler).Methods("POST")
-	router.HandleFunc("/client", controllers.RemoveClientHandler).Methods("DELETE")
 
 	// Clients
-	router.HandleFunc("/user", controllers.GetUserHandler).Methods("GET")
+	router.HandleFunc("/user", controllers.ValidateTokenMiddleware(controllers.GetUserHandler)).Methods("GET")
 
 	http.Handle("/", router)
 	http.ListenAndServe(":8080", nil)

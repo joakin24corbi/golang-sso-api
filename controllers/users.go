@@ -2,36 +2,58 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
+	"time"
 
 	models "../models"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/context"
 )
+
+// This is what is retured to the user
+type AuthToken struct {
+	TokenType string `json:"token_type"`
+	Token     string `json:"access_token"`
+	ExpiresIn int64  `json:"expires_in"`
+}
+
+// This is the cliam object which gets parsed from the authorization header
+type AuthTokenClaim struct {
+	*jwt.StandardClaims
+	models.User
+}
+
+type Result struct {
+	User  map[string]interface{} `json:"user"`
+	Token AuthToken              `json:"token"`
+	Url   string                 `json:"url"`
+}
+
+type ResponseResult struct {
+	Error  string `json:"error"`
+	Result Result `json:"result"`
+}
 
 func HomeHandler(response http.ResponseWriter, request *http.Request) {
 	response.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(response).Encode("hola")
+	json.NewEncoder(response).Encode("Golang Single Sign On")
 }
 
 func RegisterHandler(response http.ResponseWriter, request *http.Request) {
 
 	response.Header().Set("Content-Type", "application/json")
 
-	var user models.User
+	var res ResponseResult
 
-	body, _ := ioutil.ReadAll(request.Body)
+	// Decode post body
+	body, err := ioutil.ReadAll(request.Body)
 
-	err := json.Unmarshal(body, &user)
+	var parsed map[string]interface{}
 
-	var res models.ResponseResult
-
-	if err != nil {
-		res.Error = err.Error()
-		json.NewEncoder(response).Encode(res)
-		return
-	}
-
-	users, err := models.GetUsers()
+	err = json.Unmarshal(body, &parsed)
 
 	if err != nil {
 		res.Error = err.Error()
@@ -39,102 +61,218 @@ func RegisterHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	json.NewEncoder(response).Encode(users)
+	name, ok := parsed["name"]
 
-	/*
-
-		err = users.FindOne(context.TODO(), bson.D{{"email", user.Email}}).Decode(&result)
-
-		if err != nil {
-			if err.Error() == "bd: no documents in result" {
-				hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 5)
-
-				if err != nil {
-					res.Error = "Error While Hashing Password, Try Again"
-					json.NewEncoder(response).Encode(res)
-					return
-				}
-				user.Password = string(hash)
-
-				_, err = users.InsertOne(context.TODO(), user)
-				if err != nil {
-					res.Error = "Error While Creating User, Try Again"
-					json.NewEncoder(response).Encode(res)
-					return
-				}
-				res.Result = "Registration Successful"
-				json.NewEncoder(response).Encode(res)
-				return
-			}
-
-			res.Error = err.Error()
-			json.NewEncoder(response).Encode(res)
-			return
-		}
-
-		res.Result = "Username already Exists!!"
+	if !ok {
+		res.Error = "Missing name field in body request"
 		json.NewEncoder(response).Encode(res)
 		return
+	}
 
-		/* old
+	email, ok := parsed["email"]
 
-		request.ParseForm()
+	if !ok {
+		res.Error = "Missing email field in body request"
+		json.NewEncoder(response).Encode(res)
+		return
+	}
 
-		email := request.FormValue("email")
-		pwd := request.FormValue("password")
-		confirmPwd := request.FormValue("confirmPassword")
+	password, ok := parsed["password"]
 
-		_email, _pwd, _confirmPwd := false, false, false
-		_email = !helpers.IsEmpty(email)
-		_pwd = !helpers.IsEmpty(pwd)
-		_confirmPwd = !helpers.IsEmpty(confirmPwd)
+	if !ok {
+		res.Error = "Missing password field in body request"
+		json.NewEncoder(response).Encode(res)
+		return
+	}
 
-		if _email && _pwd && _confirmPwd {
-			if _pwd == _confirmPwd {
-				_userRegistered, err := models.UserRegister(email, pwd)
+	url, ok := parsed["url"]
 
-				if err != nil {
-					fmt.Fprintln(response, err)
-				} else if _userRegistered {
-					SetCookie(email, response)
-					http.Redirect(response, request, "/index", 301)
-				}
-			} else {
-				fmt.Fprintln(response, "Password does not match")
-			}
-		} else {
-			fmt.Fprintln(response, "This fields can not be blank!")
-		}
-	*/
+	if !ok {
+		url = "/"
+	} else {
+		url = url.(string)
+	}
+
+	user := models.User{name.(string), email.(string), password.(string)}
+
+	if err != nil {
+		res.Error = err.Error()
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	// Insert new user into bd
+	userBD, err := models.UserRegister(user)
+
+	if err != nil {
+		res.Error = err.Error()
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	expiresAt := time.Now().Add(time.Hour * 24).Unix()
+
+	token := jwt.New(jwt.SigningMethodHS256)
+
+	// This userBD must not contain sensitive data
+	token.Claims = &AuthTokenClaim{
+		&jwt.StandardClaims{
+			ExpiresAt: expiresAt,
+		},
+		*userBD,
+	}
+
+	tokenString, err := token.SignedString([]byte("secret"))
+
+	if err != nil {
+		res.Error = err.Error()
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	res.Result = Result{
+		map[string]interface{}{
+			"name":  userBD.Name,
+			"email": userBD.Email,
+		},
+		AuthToken{
+			Token:     tokenString,
+			TokenType: "Bearer",
+			ExpiresIn: expiresAt,
+		},
+		url.(string)}
+
+	json.NewEncoder(response).Encode(res)
+	return
 }
 
 func LoginHandler(response http.ResponseWriter, request *http.Request) {
-	/*
-			name := request.FormValue("email")
-			pass := request.FormValue("password")
-			redirectTarget := "/"
 
-			if !helpers.IsEmpty(name) && !helpers.IsEmpty(pass) {
-				// Database check for user data!
-				_userIsValid := models.UserIsValid(name, pass)
+	response.Header().Set("Content-Type", "application/json")
 
-				if _userIsValid {
-					SetCookie(name, response)
-					redirectTarget = "/index"
-				} else {
-					redirectTarget = "/register"
+	var res ResponseResult
+
+	// Decode post body
+	body, err := ioutil.ReadAll(request.Body)
+
+	var parsed map[string]interface{}
+
+	err = json.Unmarshal(body, &parsed)
+
+	if err != nil {
+		res.Error = err.Error()
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	email, ok := parsed["email"]
+
+	if !ok {
+		res.Error = "Missing email field in body request"
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	password, ok := parsed["password"]
+
+	if !ok {
+		res.Error = "Missing password field in body request"
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	url, ok := parsed["url"]
+
+	if !ok {
+		url = "/"
+	} else {
+		url = url.(string)
+	}
+
+	user := models.User{"", email.(string), password.(string)}
+
+	// Insert new user into bd
+	userBD, err := models.UserLogin(user)
+
+	if err != nil {
+		res.Error = err.Error()
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	expiresAt := time.Now().Add(time.Hour * 24).Unix()
+
+	token := jwt.New(jwt.SigningMethodHS256)
+
+	// This userBD must not contain sensitive data
+	token.Claims = &AuthTokenClaim{
+		&jwt.StandardClaims{
+			ExpiresAt: expiresAt,
+		},
+		*userBD,
+	}
+
+	tokenString, err := token.SignedString([]byte("secret"))
+
+	if err != nil {
+		res.Error = err.Error()
+		json.NewEncoder(response).Encode(res)
+		return
+	}
+
+	res.Result = Result{
+		map[string]interface{}{
+			"name":  userBD.Name,
+			"email": userBD.Email,
+		},
+		AuthToken{
+			Token:     tokenString,
+			TokenType: "Bearer",
+			ExpiresIn: expiresAt,
+		},
+		url.(string)}
+
+	json.NewEncoder(response).Encode(res)
+	return
+}
+
+func ValidateTokenMiddleware(next http.HandlerFunc) http.HandlerFunc {
+
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+
+		authorizationHeader := request.Header.Get("token")
+
+		if authorizationHeader != "" {
+
+			bearerToken := strings.Split(authorizationHeader, " ")
+
+			if len(bearerToken) == 2 {
+
+				token, err := jwt.Parse(bearerToken[1], func(token *jwt.Token) (interface{}, error) {
+
+					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, fmt.Errorf("There was an error")
+					}
+
+					return []byte("secret"), nil
+				})
+
+				if err != nil {
+					json.NewEncoder(response).Encode(err.Error())
+					return
 				}
+
+				if token.Valid {
+					context.Set(request, "decoded", token.Claims)
+					next(response, request)
+				} else {
+					json.NewEncoder(response).Encode("Invalid authorization token")
+				}
+			} else {
+				json.NewEncoder(response).Encode("Invalid authorization token")
 			}
-
-		http.Redirect(response, request, redirectTarget, 302)
-
-	*/
-}
-
-func CreateClientHandler(response http.ResponseWriter, request *http.Request) {
-
-}
-
-func RemoveClientHandler(response http.ResponseWriter, request *http.Request) {
-
+		} else {
+			json.NewEncoder(response).Encode("An authorization header is required")
+		}
+	})
 }
