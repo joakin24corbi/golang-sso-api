@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -20,5 +21,12 @@ func main() {
 	router.HandleFunc("/user", controllers.ValidateTokenMiddleware(controllers.GetUserHandler)).Methods("GET")
 
 	http.Handle("/", router)
-	http.ListenAndServe(":8080", nil)
+
+	// HTTPS
+	log.Printf("Listening at https://127.0.0.1:10443/")
+	err := http.ListenAndServeTLS(":443", "server.crt", "server.key", nil)
+
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
